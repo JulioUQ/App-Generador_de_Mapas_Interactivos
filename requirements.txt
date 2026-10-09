@@ -1,0 +1,9 @@
+streamlit>=1.50
+folium>=0.16
+geopandas>=0.14
+pandas
+numpy
+openpyxl
+python-calamine
+pyogrio
+matplotlib

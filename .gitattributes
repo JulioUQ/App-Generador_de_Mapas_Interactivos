@@ -1,0 +1,22 @@
+# Normaliza finales de línea
+* text=auto
+
+*.py   text eol=lf
+*.md   text eol=lf
+*.json text eol=lf
+*.bat  text eol=crlf
+
+.streamlit/config.toml text eol=lf
+README.txt             text eol=lf
+requirements.txt       text eol=lf
+
+# Binarios: Git no los toca ni los diffea como texto
+*.png  binary
+*.jpg  binary
+*.ico  binary
+*.shp  binary
+*.shx  binary
+*.dbf  binary
+*.gpkg binary
+*.xlsx binary
+*.parquet binary
