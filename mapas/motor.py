@@ -1490,8 +1490,10 @@ def build_map(cfg: dict, cache: Optional[dict] = None) -> Path:
     m = create_base_map(bounds)
 
     if any(l.get("on_top") for l, _ in layers):
-        # pane propio (con su propio canvas) por encima de los puntos, que van en overlayPane (400)
-        CustomPane(TOP_PANE, z_index=450, pointer_events=True).add_to(m)
+        # pane propio (con su propio canvas) por encima de los puntos, que van en overlayPane (400).
+        # pointer_events=False: si no, su canvas (que cubre todo el mapa) se queda con el ratón y los
+        # tooltips/popups de los puntos de debajo dejan de funcionar.
+        CustomPane(TOP_PANE, z_index=450, pointer_events=False).add_to(m)
 
     layer_sections: dict[str, list[str]] = {}
     ref_rows: list[str] = []

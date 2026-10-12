@@ -21,7 +21,7 @@ from pathlib import Path
 import streamlit as st
 import streamlit.components.v1 as components
 
-import mapas_core as core
+import mapas.core as core
 
 eng = core.eng
 PREVIEW_AUTO_MB = 10   # por encima, la vista previa es opcional (enviar mapas pesados al navegador tarda)
@@ -480,7 +480,7 @@ def ui_capas() -> None:
             kind = pf["kind"]
             st.caption(f"{fmt_int(len(gdf))} elementos · {len(pf['cols'])} atributos · "
                        f"{dict(polygon='polígonos', line='líneas', point='puntos', mixed='geometrías mixtas')[kind]}")
-            lcfg = {"path": str(pth), "layer": layer}
+            lcfg = {"path": str(pth), "layer": layer, "crs_assumed": assumed}
             lcfg["name"], lcfg["emoji"] = nombre_y_emoji(key, pth.stem)
             lcfg["show"] = st.checkbox("Visible al abrir el mapa", True, key=f"{key}_show")
             lcfg["style"] = style_widget(f"{vclave}|{layer}|{assumed}", pf, gdf, f"{key}_st", "#6a1b9a", "la capa")
@@ -555,10 +555,16 @@ def generar_mapa() -> None:
         with st.spinner("Generando el mapa…"):
             salida = core.generar_mapa(cfg, cache)
         html = salida.read_text(encoding="utf-8")
+        base = re.sub(r"[^\w\-]+", "_", tit["title"]).strip("_") or "mapa_interactivo"
+        script, datos = None, []
+        try:   # el script es un extra: si falla, el mapa se entrega igualmente
+            script, datos = core.generar_script(cfg, carpeta, base + ".html")
+        except Exception as exc:  # noqa: BLE001
+            st.warning(f"El mapa está listo, pero no se pudo preparar el script .py. Detalle: {exc}")
         st.session_state["result"] = {
             "html": html, "bytes": len(html.encode("utf-8")), "secs": time.time() - t0,
-            "stats": cache.get("stats", []),
-            "name": (re.sub(r"[^\w\-]+", "_", tit["title"]).strip("_") or "mapa_interactivo") + ".html"}
+            "stats": cache.get("stats", []), "name": base + ".html",
+            "script": script, "script_name": f"generar_{base}.py", "datos": datos}
     except eng.ConfigError as exc:
         st.session_state.pop("result", None)
         st.error(str(exc))
@@ -599,6 +605,15 @@ def ui_generar() -> None:
         resumen_filas(res.get("stats", []))
         st.download_button("⬇️ Descargar mapa (HTML)", res["html"].encode("utf-8"), file_name=res["name"],
                            mime="text/html", type="primary", on_click="ignore")
+        if res.get("script"):
+            st.download_button("⬇️ Descargar script (.py) para regenerar este mapa", res["script"].encode("utf-8"),
+                               file_name=res["script_name"], mime="text/x-python", on_click="ignore",
+                               help="Un único archivo con todo el código necesario y la configuración elegida.")
+            datos = res.get("datos") or []
+            st.caption("El script espera tus datos en una carpeta **datos** junto a él"
+                       + (": " + ", ".join(f"`{d}`" for d in datos) + ". " if datos else ". ")
+                       + "Si hay shapefiles, copia también su .dbf, .prj y .shx. "
+                         "Para ejecutarlo hace falta Python 3.10+ con folium, geopandas, pandas, numpy y openpyxl.")
         if mb > PREVIEW_MAX_MB:
             st.info(f"El mapa pesa más de {PREVIEW_MAX_MB} MB y no se previsualiza aquí; descárgalo para verlo.")
         elif mb <= PREVIEW_AUTO_MB or st.checkbox("Mostrar vista previa aquí (el mapa es pesado y puede ir lenta)", False):

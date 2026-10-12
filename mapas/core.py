@@ -10,9 +10,12 @@ Pegamento entre los módulos existentes y la interfaz web:
 """
 from __future__ import annotations
 
+import datetime
 import hashlib
 import json
 import os
+import pprint
+import re
 import shutil
 import subprocess
 import sys
@@ -22,8 +25,8 @@ from pathlib import Path
 
 import geopandas as gpd
 
-import generar_mapa_asistente as eng
-import geo_functions as gf
+import mapas.motor as eng
+import mapas.geo as gf
 
 # Shapefile al que le falta el .shx: GDAL lo reconstruye a partir del .shp
 os.environ.setdefault("SHAPE_RESTORE_SHX", "YES")
@@ -68,24 +71,28 @@ EMOJI_CATEGORIAS: list[tuple[str, str, list[str]]] = [
 # ---------------------------------------------------------------------------
 REFERENCIAS: dict[str, dict] = {
     "gsa": {
+        "shp": "ZonasGSA/ZonasGSA.shp",
         "label": "Zonas GSA (Mediterráneo)", "loader": "gdf_gsa", "default": True,
         "lcfg": {"name": "GSA", "show": True, "style": {"mode": "single", "color": "#808000"},
                  "weight": 1, "fill_opacity": 0.4, "tooltip": ["NombreGSA"], "popup": [],
                  "simplify": 0.002},
     },
     "zee": {
+        "shp": "ZonasZEE/ZonasZEE.shp",
         "label": "Zonas Económicas Exclusivas (ZEE)", "loader": "gdf_ZEE", "default": False,
         "lcfg": {"name": "ZEE", "show": True, "style": {"mode": "single", "color": "#d62728"},
                  "weight": 1, "dashed": True, "fill_opacity": 0, "tooltip": [], "popup": [],
                  "simplify": 0.005},
     },
     "fao": {
+        "shp": "ZonasFAO/ZonasFAO.shp",
         "label": "Zonas FAO", "loader": "gdf_FAO", "default": False,
         "lcfg": {"name": "FAO", "show": True, "style": {"mode": "single", "color": "#0066cc"},
                  "weight": 1.5, "fill_opacity": 0, "tooltip": ["Zona"], "popup": [],
                  "simplify": 0.005},
     },
     "paises": {
+        "shp": "WorldCountries/WorldCountries.shp",
         "label": "Países (máscara de tierra)", "loader": "gdf_paises", "default": False,
         "lcfg": {"name": "Países", "show": True, "style": {"mode": "single", "color": "#e3e3e3"},
                  "weight": 0.5, "fill_opacity": 1.0, "tooltip": [], "popup": [],
@@ -327,3 +334,157 @@ def generar_mapa(cfg: dict, cache: dict) -> Path:
     cfg = dict(cfg)
     cfg["open_browser"] = False
     return eng.build_map(cfg, cache)
+
+
+# ---------------------------------------------------------------------------
+# Exportar un script .py autónomo que regenera el mapa
+# ---------------------------------------------------------------------------
+def _motor_sin_main() -> str:
+    """Código fuente del motor, listo para incrustarlo (sin `__future__` ni bloque `__main__`)."""
+    src = Path(eng.__file__).read_text(encoding="utf-8")
+    src, n1 = re.subn(r"^from __future__ import annotations[ \t]*\r?\n", "", src, count=1, flags=re.M)
+    src, n2 = re.subn(r'\r?\nif __name__ == "__main__":\r?\n[ \t]+sys\.exit\(main\(\)\)\s*$', "\n", src)
+    if not (n1 and n2):
+        raise RuntimeError("No se pudo preparar el motor para exportarlo (¿cambió su cabecera o su final?).")
+    return src
+
+
+def _cfg_para_script(cfg: dict) -> tuple[dict, list[str]]:
+    """Copia de la configuración con las rutas de datos sustituidas por marcas @@D:nombre@@.
+
+    Las rutas originales son carpetas temporales de la aplicación: no sirven fuera de ella.
+    Devuelve (cfg, nombres de los archivos que el script espera encontrar en la carpeta de datos).
+    """
+    cfg = deepcopy(cfg)
+    cfg.pop("output", None)
+    por_ruta: dict[str, str] = {}
+    usados: set[str] = set()
+
+    def marca(ruta: str) -> str:
+        if not ruta:
+            return ruta
+        if ruta not in por_ruta:
+            nombre = base = Path(ruta).name
+            k = 2
+            while nombre in usados:                      # dos archivos distintos con el mismo nombre
+                nombre, k = f"{k}_{base}", k + 1
+            usados.add(nombre)
+            por_ruta[ruta] = nombre
+        return f"@@D:{por_ruta[ruta]}@@"
+
+    for pc in eng.position_configs(cfg):
+        pc["path"] = marca(str(pc["path"]))
+    for lc in cfg["layers"]:
+        if not str(lc.get("path", "")).startswith("corporativa:"):
+            lc["path"] = marca(str(lc["path"]))
+    if cfg.get("logo"):
+        cfg["logo"] = marca(str(cfg["logo"]))
+    return cfg, sorted(usados)
+
+
+_SCRIPT_CABECERA = '''#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Script autónomo que regenera el mapa «@TITULO@».
+Generado por la aplicación el @FECHA@.
+
+Incluye todo el código necesario (motor de mapas + configuración elegida en la aplicación).
+
+Requisitos: Python 3.10 o superior y
+    pip install folium geopandas pandas numpy openpyxl      (+ pyarrow si hay datos en Parquet)
+
+Uso:
+    python este_script.py                  genera el HTML junto al script y lo abre en el navegador
+    python este_script.py --no-abrir
+    python este_script.py --salida C:/ruta/mapa.html
+
+Datos: el script los busca en la carpeta «datos» junto a él (cambia DATOS_DIR para usar otra).
+Archivos esperados:
+@LISTA@
+Si un archivo es un shapefile (.shp), copia también su .dbf, .prj, .shx y .cpg.
+"""
+from __future__ import annotations
+
+# ############################################################################
+# PARTE 1 · MOTOR DE MAPAS (código de la aplicación, sin modificar)
+# ############################################################################
+'''
+
+_SCRIPT_CIERRE = '''
+
+# ############################################################################
+# PARTE 3 · EJECUCIÓN
+# ############################################################################
+def ejecutar(argv: Optional[list[str]] = None) -> int:
+    ap = argparse.ArgumentParser(description="Regenera el mapa interactivo.")
+    ap.add_argument("--salida", type=Path, help="Ruta del HTML de salida.")
+    ap.add_argument("--no-abrir", action="store_true", help="No abre el navegador al terminar.")
+    args = ap.parse_args(argv)
+
+    cfg = dict(CONFIG)
+    cfg["output"] = str(args.salida or SALIDA_HTML)
+    capas: list[dict] = []
+    cache: dict = {"layers": {}}
+    for lcfg in cfg["layers"]:
+        ruta = str(lcfg.get("path", ""))
+        if ruta.startswith("corporativa:"):
+            try:
+                cache["layers"][len(capas)] = cargar_referencia(ruta.split(":", 1)[1])
+            except Exception as exc:  # noqa: BLE001 - se omite la capa y se sigue
+                log.error("[%s] no se pudo cargar (¿es accesible %s?). Se omite. Detalle: %s",
+                          lcfg.get("name"), GIS_DIR, exc)
+                continue
+        capas.append(lcfg)
+    cfg["layers"] = capas
+
+    try:
+        guardado = build_map(cfg, cache)
+    except ConfigError as exc:
+        log.error("%s", exc)
+        return 2
+    print("\\n  Mapa generado:", guardado)
+    if not args.no_abrir:
+        open_in_chrome(guardado)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(ejecutar())
+'''
+
+
+def generar_script(cfg: dict, carpeta_gis: str | Path | None = None,
+                   salida_html: str = "mapa_interactivo.html") -> tuple[str, list[str]]:
+    """
+    Genera un único .py con TODO lo necesario para reproducir el mapa: el motor completo, la
+    configuración elegida en la aplicación y (si se usan) los cargadores de las capas corporativas.
+    Devuelve (código, archivos de datos que el script espera en la carpeta `datos` junto a él).
+    """
+    cfg_s, datos = _cfg_para_script(cfg)
+    refs = [k for k in REFERENCIAS if any(l.get("path") == f"corporativa:{k}" for l in cfg_s["layers"])]
+
+    literal = pprint.pformat(cfg_s, width=110, sort_dicts=False)
+    literal = re.sub(r"""(['"])@@D:(.*?)@@\1""",
+                     lambda m: f"str(DATOS_DIR / {m.group(1)}{m.group(2)}{m.group(1)})", literal)
+
+    titulo = re.sub(r'["\\\r\n]', " ", str(cfg.get("title") or "sin título")).strip()
+    lista = "\n".join(f"    - {n}" for n in datos) or "    (ninguno: solo capas corporativas)"
+    cab = (_SCRIPT_CABECERA.replace("@TITULO@", titulo)
+           .replace("@FECHA@", datetime.date.today().isoformat()).replace("@LISTA@", lista))
+
+    bloque = ("\n\n# ############################################################################\n"
+              "# PARTE 2 · CONFIGURACIÓN (editable)\n"
+              "# ############################################################################\n"
+              "AQUI = Path(__file__).resolve().parent\n"
+              'DATOS_DIR = AQUI / "datos"                 # carpeta con tus archivos de datos\n'
+              f"SALIDA_HTML = AQUI / {salida_html!r}\n")
+    if refs:
+        pares = ", ".join(f"{k!r}: {REFERENCIAS[k]['shp']!r}" for k in refs)
+        bloque += (
+            "\n# Capas geográficas auxiliares (corporativas). Se puede cambiar con la variable de entorno MAPAS_GIS_DIR.\n"
+            f'GIS_DIR = Path(os.environ.get("MAPAS_GIS_DIR", {str(carpeta_gis or gis_dir())!r}))\n'
+            f"REFERENCIAS_SHP = {{{pares}}}\n\n\n"
+            "def cargar_referencia(clave: str) -> gpd.GeoDataFrame:\n"
+            '    return finish_vector(gpd.read_file(GIS_DIR / REFERENCIAS_SHP[clave]), "EPSG:4326")\n')
+    bloque += f"\n\nCONFIG = {literal}\n"
+    return cab + _motor_sin_main() + bloque + _SCRIPT_CIERRE, datos

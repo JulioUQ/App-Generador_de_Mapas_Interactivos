@@ -5,18 +5,18 @@ title Crear paquete para compartir
 rem ============================================================================
 rem  Crear_paquete.bat   (SOLO PARA EL DESARROLLADOR)
 rem  Genera dist\MapasInteractivos_AAAAMMDD.zip con la aplicacion, la carpeta
-rem  wheels y el instalador de Python, sin .venv, .git ni __pycache__.
+rem  instalador (wheels + instalador de Python), sin .venv, .git, data ni __pycache__.
 rem  Para que no se incluya algo mas (por ejemplo, datos confidenciales), anadelo
 rem  a la lista /XD (carpetas) o /XF (archivos) del comando robocopy de abajo.
 rem ============================================================================
 
-pushd "%~dp0" || (echo No se puede acceder a la carpeta de la aplicacion. & pause & exit /b 1)
+pushd "%~dp0.." || (echo No se puede acceder a la carpeta de la aplicacion. & pause & exit /b 1)
 
 set "PYVER=3.12.8"
 
-dir /b "wheels\*.whl" >nul 2>&1
+dir /b "instalador\wheels\*.whl" >nul 2>&1
 if errorlevel 1 goto :sin_wheels
-if not exist "python-%PYVER%-amd64.exe" echo AVISO: falta python-%PYVER%-amd64.exe; los equipos sin Python necesitaran internet para instalarlo.
+if not exist "instalador\python-%PYVER%-amd64.exe" echo AVISO: falta instalador\python-%PYVER%-amd64.exe; los equipos sin Python necesitaran internet para instalarlo.
 echo.
 
 for /f %%D in ('powershell -NoProfile -Command "Get-Date -Format yyyyMMdd"') do set "FECHA=%%D"
@@ -25,7 +25,7 @@ set "STAGE=%RAIZ%\MapasInteractivos"
 if exist "%RAIZ%" rmdir /s /q "%RAIZ%"
 
 echo Copiando archivos...
-robocopy "." "%STAGE%" /E /XD ".venv" "__pycache__" ".git" "dist" "wheels_tmp" /XF "*.pyc" ".gitignore" ".gitattributes" "_gitignore" "_gitattributes" /NFL /NDL /NJH /NJS /NP
+robocopy "." "%STAGE%" /E /XD ".venv" "__pycache__" ".git" "dist" "data" "wheels_tmp" /XF "*.pyc" ".gitignore" ".gitattributes" "_gitignore" "_gitattributes" /NFL /NDL /NJH /NJS /NP
 if errorlevel 8 goto :error_copia
 
 if not exist "dist" mkdir "dist"
@@ -42,12 +42,12 @@ echo  Paquete creado: %CD%\%ZIP%
 echo.
 echo  Instrucciones para quien lo reciba:
 echo    1. Descomprimir el .zip COMPLETO en una carpeta (no ejecutar desde dentro del zip).
-echo    2. Doble clic en Iniciar_Mapas.bat.
+echo    2. Doble clic en scripts\Iniciar_Mapas.bat.
 echo ============================================================
 goto :fin
 
 :sin_wheels
-echo ERROR: la carpeta wheels no existe o esta vacia. Ejecuta antes Actualizar_wheels.bat.
+echo ERROR: la carpeta instalador\wheels no existe o esta vacia. Ejecuta antes Actualizar_wheels.bat.
 goto :fin
 
 :error_copia

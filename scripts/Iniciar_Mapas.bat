@@ -11,8 +11,8 @@ rem ============================================================================
 rem --- Version de Python que se instala automaticamente si el equipo no tiene ninguna valida
 set "PYVER=3.12.8"
 
-rem --- Trabajar desde la carpeta del .bat (pushd tambien vale si esta en una unidad de red \\servidor\...)
-pushd "%~dp0" || (echo No se puede acceder a la carpeta de la aplicacion. & pause & exit /b 1)
+rem --- Trabajar desde la RAIZ del proyecto (este .bat esta en scripts\; pushd tambien vale en unidades de red \\servidor\...)
+pushd "%~dp0.." || (echo No se puede acceder a la carpeta de la aplicacion. & pause & exit /b 1)
 
 rem --- Todo lo "pesado" (Python propio y entorno virtual) se guarda en el disco LOCAL de cada usuario:
 rem     es mas rapido, evita problemas en carpetas de red y cada persona tiene el suyo.
@@ -40,16 +40,16 @@ echo.
 echo ============================================================
 echo  Preparando la aplicacion por primera vez.
 echo  Puede tardar unos minutos y necesita conexion a internet
-echo  (salvo que exista la carpeta "wheels" junto a este archivo).
+echo  (salvo que exista la carpeta "instalador\wheels" en el proyecto).
 echo ============================================================
 echo.
 
 rem --- 1) Buscar un Python valido. Solo versiones con librerias precompiladas (3.10 a 3.13).
 set "PY="
 if exist "%PYLOCAL%" set PY="%PYLOCAL%"
-rem Con la carpeta "wheels" solo vale Python 3.12 (las librerias precompiladas son para esa version)
+rem Con la carpeta "instalador\wheels" solo vale Python 3.12 (las librerias precompiladas son para esa version)
 set "VERS=3.12 3.11 3.13 3.10"
-if exist "wheels" set "VERS=3.12"
+if exist "instalador\wheels" set "VERS=3.12"
 for %%V in (%VERS%) do if not defined PY (py -%%V --version >nul 2>&1 && set "PY=py -%%V")
 if defined PY goto :python_listo
 
@@ -58,7 +58,7 @@ echo No se ha encontrado una version valida de Python. Instalando Python %PYVER%
 echo.
 set "PYINST=%TEMP%\python-%PYVER%-instalador.exe"
 if exist "%PYINST%" del "%PYINST%" >nul 2>&1
-if exist "%~dp0python-%PYVER%-amd64.exe" copy /y "%~dp0python-%PYVER%-amd64.exe" "%PYINST%" >nul
+if exist "instalador\python-%PYVER%-amd64.exe" copy /y "instalador\python-%PYVER%-amd64.exe" "%PYINST%" >nul
 if exist "%PYINST%" goto :instalador_descargado
 powershell -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; try { Invoke-WebRequest 'https://www.python.org/ftp/python/%PYVER%/python-%PYVER%-amd64.exe' -OutFile '%PYINST%' -UseBasicParsing } catch { exit 1 }" >nul 2>&1
 if errorlevel 1 goto :sin_python
@@ -80,9 +80,9 @@ if not exist "%PYEXE%" goto :error_venv
 :instalar
 echo Instalando las librerias necesarias (solo cuando hace falta)...
 echo.
-rem Si existe la carpeta "wheels" se instala sin internet; si falla (o no existe) se usa internet
-if not exist "wheels" goto :instalar_online
-"%PYEXE%" -m pip install --no-index --find-links "wheels" -r requirements.txt
+rem Si existe la carpeta "instalador\wheels" se instala sin internet; si falla (o no existe) se usa internet
+if not exist "instalador\wheels" goto :instalar_online
+"%PYEXE%" -m pip install --no-index --find-links "instalador\wheels" -r requirements.txt
 if not errorlevel 1 goto :verificar
 echo.
 echo La instalacion sin conexion no ha funcionado. Se intentara descargar de internet...
@@ -137,7 +137,7 @@ echo Solucion manual:
 echo   1. Instala Python %PYVER% (64 bits) desde https://www.python.org/downloads/
 echo   2. Durante la instalacion deja marcadas "tcl/tk and IDLE" y "py launcher".
 echo   3. Vuelve a hacer doble clic en este archivo.
-echo Alternativa sin internet: copia python-%PYVER%-amd64.exe junto a este archivo.
+echo Alternativa sin internet: copia python-%PYVER%-amd64.exe en la carpeta "instalador" del proyecto.
 goto :fin
 
 :error_venv

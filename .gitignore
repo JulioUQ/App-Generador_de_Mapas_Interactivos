@@ -4,6 +4,9 @@ __pycache__/
 .venv/
 venv/
 .env
+python-*.exe
+wheels/
+wheels_tmp/
 
 # IDE / sistema
 .vscode/
@@ -12,13 +15,13 @@ venv/
 Thumbs.db
 
 # Salidas generadas
-mapa_interactivo*.html
+*.html
 
 # Datos: no se versionan
+data/
 *.xlsx
 *.xls
 *.csv
-*.parquet
 *.shp
 *.shx
 *.dbf
