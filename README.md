@@ -1,26 +1,40 @@
-# Generador de Mapas Interactivos
+# Aplicación · Generador de mapas interactivos
+
+Aplicación local que convierte tablas de posiciones y capas GIS en un mapa HTML autónomo para explorar y compartir sin instalar la aplicación en el equipo del destinatario.
+
+## Tecnologías
+
+Python, Streamlit, Folium y GeoPandas
+
+## Explorar el repositorio
+
+- [`app.py`](./app.py)
+- [`mapas`](./mapas)
+- [`tests`](./tests)
+
+## Documentación
 
 Aplicación local para crear mapas web interactivos (un único archivo HTML autocontenido) a partir de posiciones, capas geográficas propias y capas geográficas auxiliares corporativas. No requiere programar.
 
-## Requisitos
+#### Requisitos
 
 - Python 3.10 o superior (se usa sintaxis `X | None`).
 - Paquetes: `streamlit`, `folium`, `geopandas`, `pandas`, `numpy`, `openpyxl` (Excel). Parquet requiere además `pyarrow`.
 - `tkinter` (incluido con Python en Windows) para el botón «Elegir capas del disco».
 
-## Instalación y ejecución
+#### Instalación y ejecución
 
 La forma más sencilla de iniciar la aplicación es ejecutar:
 
 ```text
-iniciar_mapas.bat
+.\scripts\Iniciar_Mapas.bat
 ```
 
 La primera ejecución prepara automáticamente el entorno virtual e instala las dependencias necesarias. Este proceso puede tardar unos minutos.
 
 Una vez iniciado el sistema, se abrirá automáticamente el navegador con la aplicación.
 
-## Qué ofrece
+#### Qué ofrece
 
 - **Posiciones**: Excel, CSV, Parquet o puntos en GPKG/SHP/GeoJSON. Se pueden cargar varios conjuntos a la vez,
   cada uno con su leyenda y sus filtros.
@@ -35,13 +49,13 @@ Una vez iniciado el sistema, se abrirá automáticamente el navegador con la apl
   control de capas, leyenda, minimapa y coordenadas del cursor.
 - **Salida**: HTML que se abre en cualquier navegador, con título, subtítulo y logo opcionales.
   
-## Uso
+#### Uso
 
 La aplicación está organizada en tres pestañas principales.
 
 Sigue el flujo de trabajo indicado en las pestañas **1, 2 y 3**.
 
-## Configuración de capas GIS
+#### Configuración de capas GIS
 
 La aplicación utiliza diferentes capas geoespaciales, como:
 
@@ -54,7 +68,7 @@ Si estas capas se encuentran en una ubicación diferente a la configurada por de
 
 **Ajustes avanzados → Ruta de las capas GIS**
 
-## Estructura del proyecto
+#### Estructura del proyecto
 
 | Archivo | Función |
 |---|---|
@@ -63,7 +77,7 @@ Si estas capas se encuentran en una ubicación diferente a la configurada por de
 | `motor.py` | Motor que construye el mapa (Folium/Leaflet). También funciona por consola. |
 | `geo.py` | Carga de las capas GIS corporativas y utilidades geoespaciales. |
 
-## Dependencias
+#### Dependencias
 
 Las dependencias del proyecto se encuentran en:
 
@@ -71,7 +85,7 @@ Las dependencias del proyecto se encuentran en:
 requirements.txt
 ```
 
-## Inicio rápido
+#### Inicio rápido
 
 Para iniciar la aplicación:
 
@@ -81,7 +95,7 @@ Para iniciar la aplicación:
 4. Espera a que se prepare el entorno la primera vez.
 5. Accede a la aplicación desde el navegador.
 
-## Uso
+#### Uso
 
 Interfaz web:
 
@@ -99,7 +113,7 @@ python generar_mapa_asistente.py --config mapa.config.json --posiciones datos_nu
 
 Opciones: `--salida RUTA.html`, `--sin-dialogos`, `--no-abrir`.
 
-## Capas corporativas
+#### Capas corporativas
 
 `geo_functions.py` lee los shapefiles de `GIS_DIR` (subcarpetas `WorldCountries`, `ZonasGSA`, `ZonasFAO`, `ZonasZEE`).
 La ruta se puede cambiar sin tocar código con la variable de entorno `MAPAS_GIS_DIR`, o desde el campo
