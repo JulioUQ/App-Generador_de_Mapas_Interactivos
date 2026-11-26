@@ -36,4 +36,5 @@ jobs:
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
     - name: Test with pytest
       run: |
-        pytest
+        # pytest devuelve 5 cuando no encuentra tests; solo se ejecuta si existen.
+        if ls tests/test_*.py tests/*_test.py >/dev/null 2>&1; then pytest; else echo "No hay tests todavía"; fi
